@@ -16,7 +16,7 @@ data:
   num_workers: 5
   data_dir: "/mnt/SSD2/constantin/data/pyqg"
   data_generation: "pyqg_leadtime_100hours"
-  lead_time: 1
+  lead_time: 5
 
 pipeline:
   highres_forecasting: False

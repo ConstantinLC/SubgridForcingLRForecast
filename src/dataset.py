@@ -7,49 +7,65 @@ import random
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 import xarray as xr
 from itertools import product
 
-class PyQGXArrayDataset(Dataset):
+# Modified version of PyQGXArrayDataset for faster high resolution data reading. For now doesn't support shuffling
+class PyQGXArrayDataset_Lowres(IterableDataset):
     def __init__(
         self,
-        data_dir:str, 
+        data_dir: str, 
         start_run: int = 0,
-        end_run: int = 100, #index of final run (exclusive)
+        end_run: int = 100,  # index of the final run (exclusive)
+        shuffle: bool = False,
+        n_runs_per_chunk: int = 1,
         lead_time: int = 1,
-        transforms: torch.nn.Module = None, output_transforms: torch.nn.Module = None, 
     ) -> None:
         super().__init__()
 
         self.data_dir = data_dir
-        self.lead_time = lead_time
         self.start_run = start_run
-        self.end_run = end_run 
-        self.transforms = transforms
-        self.output_transforms = output_transforms
-        
-        run_paths_lowres = [os.path.join(self.data_dir, "lowres", f"run_{run}.nc") for run in range(self.start_run, self.end_run)] 
-        print(run_paths_lowres)
-        self.data_lowres = xr.open_mfdataset(run_paths_lowres, engine="h5netcdf").load()
-        print('a')
-        self.samples_per_run = len(self.data_lowres.time) - self.lead_time
-        
+        self.end_run = end_run
         self.n_runs = self.end_run - self.start_run
+        self.n_runs_per_chunk = n_runs_per_chunk
+        self.shuffle = shuffle
+        self.lead_time = lead_time
 
-        
-    def __len__(self):
-        return self.samples_per_run * self.n_runs
+        self.runs_range = list(range(self.start_run, self.end_run))
+        if self.shuffle:
+            random.shuffle(self.runs_range)
 
+        self.run_paths_lowres = [os.path.join(self.data_dir, "lowres", f"run_{run}.nc") for run in self.runs_range]
 
-    def __getitem__(self, idx):
-        run_id = idx // self.samples_per_run
-        sample_id = idx % self.samples_per_run
- 
-        input_lowres_q = torch.from_numpy(np.array(self.data_lowres.isel(run=run_id, time=sample_id).q)).to(torch.float32)
-        target_lowres_q = torch.from_numpy(np.array(self.data_lowres.isel(run=run_id, time=sample_id + self.lead_time).q)).to(torch.float32)
-        input_lowres_forcing = torch.from_numpy(np.array(self.data_lowres.isel(run=run_id, time=sample_id).q_forcing)).to(torch.float32)
-        
-        return input_lowres_q, target_lowres_q, input_lowres_forcing
+        self.data_lowres = xr.open_mfdataset(self.run_paths_lowres, engine="h5netcdf")
 
-        #torch.cuda.empty_cache()
+    def __iter__(self):
+
+        worker_info = torch.utils.data.get_worker_info()
+        num_workers = worker_info.num_workers
+        worker_id = worker_info.id
+
+        assert(len(self.runs_range) % num_workers==0)
+        runs_per_worker = int(len(self.runs_range) // num_workers)
+            
+        for run_idx in self.runs_range[runs_per_worker * worker_id: runs_per_worker * (worker_id + 1)]:
+
+            input_lowres_q = self.data_lowres.sel(run=run_idx).q.load()
+            target_lowres_q = self.data_lowres.sel(run=run_idx).q.load()
+            input_lowres_forcing = self.data_lowres.sel(run=run_idx).q_forcing.load()
+
+            n_samples_per_chunk = len(self.data_lowres.time) - self.lead_time
+            
+            for sample_idx in range(n_samples_per_chunk):
+
+                input_lowres_q_sample = torch.from_numpy(np.array(
+                    input_lowres_q.isel(time=sample_idx))).to(torch.float32)
+
+                target_lowres_q_sample = torch.from_numpy(np.array(
+                    target_lowres_q.isel(time=sample_idx+self.lead_time))).to(torch.float32)
+
+                input_lowres_forcing_sample = torch.from_numpy(np.array(
+                    input_lowres_forcing.isel(time=sample_idx))).to(torch.float32)
+
+                yield input_lowres_q_sample, target_lowres_q_sample, input_lowres_forcing_sample
