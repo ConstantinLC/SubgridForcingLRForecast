@@ -29,7 +29,7 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
         # 3. load the new state dict
         self.teacher_model.load_state_dict(teacher_model_dict)
 
-        self.teacher_model = self.teacher_model.encoder
+        self.teacher_model = self.teacher_model.hr_encoder
 
         for param in self.teacher_model.parameters():
             param.requires_grad = False
@@ -143,5 +143,5 @@ class ParametrizationTeachingTrueForcing(pl.LightningModule):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=5e-3)
+        optimizer = optim.AdamW(self.parameters(), lr=1e-3)
         return optimizer

@@ -1,6 +1,6 @@
 training:
   batch_size: 128
-  max_epochs: 50
+  max_epochs: 200
 
 model:
   architecture: "UNet"
@@ -16,11 +16,12 @@ data:
   num_workers: 5
   data_dir: "/mnt/SSD2/constantin/data/pyqg"
   data_generation: "pyqg_leadtime_100hours"
-  lead_time: 1
+  lead_time: 5
 
 pipeline:
   highres_forecasting: False
   add_parametrization: True
   add_highres_encoding: False
   add_forcing: False
-  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-199-val_MSE0.09.ckpt'
+  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-91-val_MSE0.03.ckpt'
+

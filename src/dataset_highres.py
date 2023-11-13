@@ -59,7 +59,11 @@ class PyQGXArrayDataset_Highres(IterableDataset):
 
             n_samples_per_chunk = len(self.data_lowres.time) - self.lead_time
             
-            for sample_idx in range(n_samples_per_chunk):
+            indices = list(range(n_samples_per_chunk))
+            if self.shuffle:
+                random.shuffle(indices)
+
+            for sample_idx in indices:
 
                 input_lowres_q_sample = torch.from_numpy(np.array(
                     input_lowres_q.isel(time=sample_idx))).to(torch.float32)

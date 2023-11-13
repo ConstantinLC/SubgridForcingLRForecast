@@ -4,7 +4,7 @@ training:
 
 model:
   architecture: "UNet"
-  learning_rate: 1e-3
+  learning_rate: 5e-3
   n_input_scalar_components: 2
   n_output_scalar_components: 2
   time_history: 1

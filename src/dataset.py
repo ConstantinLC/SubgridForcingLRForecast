@@ -56,8 +56,12 @@ class PyQGXArrayDataset_Lowres(IterableDataset):
             input_lowres_forcing = self.data_lowres.sel(run=run_idx).q_forcing.load()
 
             n_samples_per_chunk = len(self.data_lowres.time) - self.lead_time
+ 
+            indices = list(range(n_samples_per_chunk))
+            if self.shuffle:
+                random.shuffle(indices)
             
-            for sample_idx in range(n_samples_per_chunk):
+            for sample_idx in indices:
 
                 input_lowres_q_sample = torch.from_numpy(np.array(
                     input_lowres_q.isel(time=sample_idx))).to(torch.float32)

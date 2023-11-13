@@ -7,6 +7,7 @@ import torch.optim as optim
 from parametrization.subgrid_parametrization import SubgridParametrization
 import glob
 from kornia.filters import box_blur
+from unet import UNet2d
 
 class ConvBlock(pl.LightningModule):
     def __init__(self, in_channels, out_channels, num_groups=1, norm: bool = True, activation="gelu") -> None:
@@ -107,7 +108,7 @@ class ForecastModel(pl.LightningModule):
         if self.activation is None:
             raise NotImplementedError(f"Activation {activation} not implemented")
 
-        insize = time_history * (2*self.n_input_scalar_components + self.n_added_input_components)
+        insize = time_history * (self.n_input_scalar_components + self.n_added_input_components)
         n_channels = insize
         #self.image_proj = ConvBlock(insize, n_channels, activation=activation)
 
@@ -152,20 +153,20 @@ class ForecastModel(pl.LightningModule):
             )
 
         self.lr_encoder = nn.Sequential(
-                nn.Conv2d(self.n_input_scalar_components * (1 + int(self.add_forcing) + int(self.add_highres_encoding)), 16, kernel_size=3, stride=1, padding=1),  # 64x128x40
+                nn.Conv2d(self.n_input_scalar_components * (1 + int(self.add_forcing) + int(self.add_highres_encoding) + int(self.add_parametrization)), 16, kernel_size=3, stride=1, padding=1),  # 64x128x40
                 nn.LeakyReLU(0.3),
-                #nn.Dropout(p=0.1),
+                nn.Dropout(p=0.1),
                 nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1),  # 64x128x40
                 nn.LeakyReLU(0.3),
-                #nn.Dropout(p=0.1),
+                nn.Dropout(p=0.1),
                 nn.Conv2d(16, 32, kernel_size=6, stride=2, padding=2),  # 64x128x40
                 nn.LeakyReLU(0.3),
                 nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),  # 64x128x40
                 nn.LeakyReLU(0.3),
-                #nn.Dropout(p=0.1),
+                nn.Dropout(p=0.1),
                 nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),  # 64x128x40
                 nn.LeakyReLU(0.3),
-                #nn.Dropout(p=0.1),
+                nn.Dropout(p=0.1),
                 nn.Conv2d(32, 2, kernel_size=6, stride=2, padding=2),
             )
 
@@ -185,6 +186,8 @@ class ForecastModel(pl.LightningModule):
             for param in self.subgrid_parametrization.parameters():
                 param.requires_grad = False
 
+        self.unet = UNet2d(in_channels=self.n_input_scalar_components * (1 + int(self.add_forcing) + int(self.add_highres_encoding) + int(self.add_parametrization)), out_channels=2)
+
 
     def forward(self, x, highres_x=None):
 
@@ -198,22 +201,24 @@ class ForecastModel(pl.LightningModule):
             x_cat[:, -x_encoded.shape[1]:] = x_encoded
             x = x_cat
 
-        x = torch.cat((x, self.lr_encoder(x.repeat_interleave(4,dim=-1).repeat_interleave(4,dim=-2))), dim=1)
+        #x = torch.cat((x, self.lr_encoder(x.repeat_interleave(4,dim=-1).repeat_interleave(4,dim=-2))), dim=1)
 
-        h = x
+        #h = x
 
-        x1 = self.down[0](x)
-        x2 = self.down[1](x1)
-        x3 = self.down[2](x2)
-        x4 = self.down[3](x3)
-        x = self.up[0](x4, x3)
-        x = self.up[1](x, x2)
-        x = self.up[2](x, x1)
-        x = self.up[3](x, h)
+        #x1 = self.down[0](x)
+        #x2 = self.down[1](x1)
+        #x3 = self.down[2](x2)
+        #x4 = self.down[3](x3)
+        #x = self.up[0](x4, x3)
+        #x = self.up[1](x, x2)
+        #x = self.up[2](x, x1)
+        #x = self.up[3](x, h)
 
-        x = self.final(x)
+        #x = self.final(x)
 
-        preds = x 
+        #preds = x 
+
+        preds = self.unet(x)
         return preds
     
 

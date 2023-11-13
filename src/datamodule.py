@@ -27,7 +27,7 @@ class DataModule(pl.LightningDataModule):
         return DataLoader(train_ds, batch_size=self.batch_size, num_workers=self.num_workers, prefetch_factor=1)
     
     def val_dataloader(self):
-        val_ds = self.dataset_type(data_dir=self.data_dir, start_run=self.end_run_train, end_run=self.end_run_val, lead_time=self.lead_time)
+        val_ds = self.dataset_type(data_dir=self.data_dir, start_run=self.end_run_train, end_run=self.end_run_val, shuffle=False, lead_time=self.lead_time)
         return DataLoader(val_ds, batch_size=self.batch_size, num_workers=self.num_workers, prefetch_factor=1)
     
     def test_dataloader(self):
