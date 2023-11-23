@@ -11,7 +11,6 @@ model:
   time_future: 1
   hidden_channels: 32
   activation: "leaky relu"
-  dropout: True
 
 data:
   num_workers: 5

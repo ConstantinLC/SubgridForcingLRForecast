@@ -50,13 +50,13 @@ def main():
             n_output_scalar_components=2)
     else:
         parametrization_teaching = ParametrizationTeachingLearnedForcing(
-            pretrained_forecast_path= '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-184-val_MSE0.10.ckpt', #model-151-val_MSE0.10.ckpt'
+            pretrained_forecast_path= '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-75-val_MSE0.06.ckpt',
             n_input_scalar_components=2,
             n_output_scalar_components=2)
     parametrization_teaching.cuda()
 
     wandb_logger = WandbLogger()
-    trainer = pl.Trainer(max_epochs=config['training']['max_epochs'], accelerator="gpu", devices=1, callbacks=[checkpoint_callback], logger=wandb_logger)
+    trainer = pl.Trainer(max_epochs=config['training']['max_epochs'], accelerator="gpu", devices=1, callbacks=[checkpoint_callback], logger=wandb_logger)#, overfit_batches=1)
 
     trainer.fit(parametrization_teaching, datamodule)
 

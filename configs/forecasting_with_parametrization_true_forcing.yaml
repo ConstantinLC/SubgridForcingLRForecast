@@ -23,4 +23,4 @@ pipeline:
   add_parametrization: True
   add_highres_encoding: False
   add_forcing: False
-  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-64-val_MSE0.10.ckpt'
+  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-70-val_MSE0.07.ckpt' #model-48-val_MSE0.05.ckpt'

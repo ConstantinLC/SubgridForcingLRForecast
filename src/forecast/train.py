@@ -29,6 +29,7 @@ def main():
         name=config_file,
         config=config
     )
+    wandb.define_metric("val/MSE", summary="min")
 
     add_highres_data = config['pipeline']['add_highres_encoding'] or config['pipeline']['highres_forecasting']
 
