@@ -15,13 +15,13 @@ model:
 data:
   num_workers: 5
   data_dir: "/mnt/SSD2/constantin/data/pyqg"
-  data_generation: "pyqg_leadtime_100hours"
-  lead_time: 1
+  data_generation: "pyqg_unit_100hours"
+  lead_time: 5
 
 pipeline:
   highres_forecasting: False
   add_parametrization: False
-  add_highres_encoding: False
+  add_highres_encoding: True
   add_forcing: False
   parametrization_path: None
-  autoregressive: False
+  autoregressive: True

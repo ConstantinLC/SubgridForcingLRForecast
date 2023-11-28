@@ -37,8 +37,10 @@ class PyQGXArrayDataset_Lowres(IterableDataset):
             random.shuffle(self.runs_range)
 
         self.run_paths_lowres = [os.path.join(self.data_dir, "lowres", f"run_{run}.nc") for run in self.runs_range]
+        self.run_paths_highres = [os.path.join(self.data_dir, "highres", f"run_{run}.nc") for run in self.runs_range]
 
         self.data_lowres = xr.open_mfdataset(self.run_paths_lowres, engine="h5netcdf")
+        self.data_highres = xr.open_mfdataset(self.run_paths_highres, engine="h5netcdf")
 
     def __iter__(self):
 
@@ -51,8 +53,11 @@ class PyQGXArrayDataset_Lowres(IterableDataset):
             
         for run_idx in self.runs_range[runs_per_worker * worker_id: runs_per_worker * (worker_id + 1)]:
 
-            input_lowres_q = self.data_lowres.sel(run=run_idx).q.load()
-            target_lowres_q = self.data_lowres.sel(run=run_idx).q.load()
+            """input_lowres_q = self.data_lowres.sel(run=run_idx).q.load()
+            target_lowres_q = self.data_lowres.sel(run=run_idx).q.load()"""
+
+            input_lowres_q = self.data_highres.sel(run=run_idx).q.load()[..., ::4, ::4]
+            target_lowres_q = self.data_highres.sel(run=run_idx).q.load()[..., ::4, ::4]
             input_lowres_forcing = self.data_lowres.sel(run=run_idx).q_forcing.load()
 
             n_samples_per_chunk = len(self.data_lowres.time) - self.lead_time

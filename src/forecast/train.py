@@ -35,7 +35,8 @@ def main():
 
     datamodule = DataModule(data_dir="/mnt/SSD2/constantin/data/pyqg", batch_size=config['training']['batch_size'], 
                             num_workers=config['data']['num_workers'], highres=add_highres_data, 
-                            shuffle=not config['pipeline']['add_highres_encoding'], lead_time=config['data']['lead_time'])
+                            shuffle=not config['pipeline']['add_highres_encoding'], lead_time=config['data']['lead_time'],
+                            autoregressive=config['pipeline']['autoregressive'])
 
     checkpoint_callback = ModelCheckpoint(
         monitor='val/MSE',
@@ -56,7 +57,8 @@ def main():
                           add_highres_encoding=config['pipeline']['add_highres_encoding'],
                           add_parametrization=config['pipeline']['add_parametrization'],
                           highres_forecasting=config['pipeline']['highres_forecasting'],
-                          parametrization_path=config['pipeline']['parametrization_path'])
+                          parametrization_path=config['pipeline']['parametrization_path'],
+                          autoregressive=config['pipeline']['autoregressive'])
 
     model.cuda()
 

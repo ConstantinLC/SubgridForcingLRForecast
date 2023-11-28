@@ -41,6 +41,7 @@ class ForecastModel(pl.LightningModule):
         add_highres_encoding=False,
         add_parametrization=False,
         highres_forecasting=False,
+        autoregressive=False,
         parametrization_path=None
     ) -> None:
         super().__init__()
@@ -56,15 +57,16 @@ class ForecastModel(pl.LightningModule):
         self.learning_rate = learning_rate
         self.highres_forecasting = highres_forecasting
         self.parametrization_path = parametrization_path
+        self.autoregressive = autoregressive
             
         self.n_added_input_components = self.n_input_scalar_components * (int(self.add_forcing) + 
                                            int(self.add_highres_encoding) + 
                                            int(self.add_parametrization))
         
         if self.add_highres_encoding:
-            self.hr_encoder = UNet2d_hr_encoder(in_channels=2, out_channels=2)
+            self.pre_forecast_hr = UNet2d_hr_encoder(in_channels=2, out_channels=2)
         else:
-            self.hr_encoder = UNet2d(in_channels=2, out_channels=2)
+            self.pre_forecast_lr = UNet2d(in_channels=2, out_channels=2)
         
         if self.add_parametrization:
             self.subgrid_parametrization = SubgridParametrization(
@@ -82,17 +84,18 @@ class ForecastModel(pl.LightningModule):
             for param in self.subgrid_parametrization.parameters():
                 param.requires_grad = False
 
-        self.unet = UNet2d(in_channels=self.n_input_scalar_components * (1 + int(self.add_forcing) + 1 + int(self.add_parametrization)), out_channels=2)
-        #self.unet = FNO2d(num_channels=2)
+        self.unet = UNet2d(in_channels=self.n_input_scalar_components * (2 + int(self.add_parametrization)), out_channels=2)
 
-    def forward(self, x, highres_x=None):
-
+    def forward(self, x, forcing=None, highres_x=None):
         if self.add_highres_encoding:
-            x_encoded = self.hr_encoder(box_blur(highres_x, kernel_size=(4,4))) #x.repeat_interleave(4, dim=-1).repeat_interleave(4, dim=-2)) #self.hr_encoder(box_blur(highres_x, kernel_size=(4,4)))
-            x = torch.cat((x, x_encoded), dim=1)
-        else:
-            x_encoded = self.hr_encoder(x) 
-            x = torch.cat((x, x_encoded), dim=1)
+            x_pre_forecast = self.pre_forecast_hr(highres_x)
+            x = torch.cat((x, x_pre_forecast), dim=1)
+        elif self.add_forcing:
+            x_pre_forecast = self.pre_forecast_lr(forcing)
+            x = torch.cat((x, x_pre_forecast), dim=1)
+        else: #if not self.highres_forecasting:
+            x_pre_forecast = self.pre_forecast_lr(x) 
+            x = torch.cat((x, x_pre_forecast), dim=1)
         
         if self.add_parametrization:
             x_encoded = self.subgrid_parametrization(x)
@@ -121,7 +124,7 @@ class ForecastModel(pl.LightningModule):
             input_highres_q = self.normalize(input_highres_q)
             target_highres_q = self.normalize(target_highres_q)
         else: 
-            input_lowres_q, target_lowres_q, input_lowres_forcing = batch
+            input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
 
         input_lowres_q = self.normalize(input_lowres_q)
         target_lowres_q = self.normalize(target_lowres_q)
@@ -131,14 +134,13 @@ class ForecastModel(pl.LightningModule):
             input = input_highres_q
             target = target_highres_q
         else: 
+            input = input_lowres_q
             target = target_lowres_q
-            if self.add_forcing:
-                input = torch.cat((input_lowres_q, input_lowres_forcing), axis=1)
-            else:
-                input = input_lowres_q
-
+            
         if self.add_highres_encoding:
-            preds = self.forward(input, input_highres_q)
+            preds = self.forward(input, highres_x = input_highres_q)
+        elif self.add_forcing:
+            preds = self.forward(input, forcing = input_lowres_forcing)
         else:
             preds = self.forward(input)
 
@@ -156,42 +158,45 @@ class ForecastModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
 
-        if self.add_highres_encoding or self.highres_forecasting:
-            input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
-            input_highres_q = self.normalize(input_highres_q)
-            target_highres_q = self.normalize(target_highres_q)
-        else: 
-            input_lowres_q, target_lowres_q, input_lowres_forcing = batch
+        if not self.autoregressive:
 
-        input_lowres_q = self.normalize(input_lowres_q)
-        target_lowres_q = self.normalize(target_lowres_q)
-        input_lowres_forcing = self.normalize(input_lowres_forcing)
+            if self.add_highres_encoding or self.highres_forecasting:
+                input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
+                input_highres_q = self.normalize(input_highres_q)
+                target_highres_q = self.normalize(target_highres_q)
+            else: 
+                input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch = batch
 
-        if self.highres_forecasting:
-            input = input_highres_q
-            target = target_highres_q
-        else: 
-            target = target_lowres_q
-            if self.add_forcing:
-                input = torch.cat((input_lowres_q, input_lowres_forcing), axis=1)
-            else:
+            input_lowres_q = self.normalize(input_lowres_q)
+            target_lowres_q = self.normalize(target_lowres_q)
+            input_lowres_forcing = self.normalize(input_lowres_forcing)
+            
+            if self.highres_forecasting:
+                input = input_highres_q
+                target = target_highres_q
+            else: 
                 input = input_lowres_q
-
-        if self.add_highres_encoding:
-            preds = self.forward(input, input_highres_q)
+                target = target_lowres_q
+                
+            if self.add_highres_encoding:
+                preds = self.forward(input, highres_x = input_highres_q)
+            elif self.add_forcing:
+                preds = self.forward(input, forcing = input_lowres_forcing)
+            else:
+                preds = self.forward(input)
+    
         else:
-            preds = self.forward(input)
 
-        #preds = self.normalize(target_highres_q)
+            lowres_q, lowres_forcing, highres_q = batch
+        
+            input_lowres_q = self.normalize(lowres_q[:, 0])
+            target = self.normalize(lowres_q[:, -1])
 
-        #grid_in = {"lat": np.linspace(-90, 90, 128), "lon": np.linspace(-180, 180, 256)}
-        #grid_out = {"lat": np.linspace(-90, 90, 32), "lon": np.linspace(-180, 180, 64)}
-        #regridder = xe.Regridder(grid_in, grid_out, 'bilinear', periodic=True)
-        #preds = regridder(preds)
-        #preds = blur_pool2d(preds, kernel_size=4, stride=4)
-
-        #if self.highres_forecasting:
-        #    preds = blur_pool2d(preds, kernel_size=4, stride=4)
+            preds = input_lowres_q
+            for i in range(lowres_q.shape[1]):
+                highres_q_i = self.normalize(highres_q[:, i])
+                
+                preds = self.forward(preds, highres_x = highres_q_i)
 
         loss = nn.MSELoss()(preds, target)
 
