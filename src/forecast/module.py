@@ -118,33 +118,57 @@ class ForecastModel(pl.LightningModule):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
 
     def training_step(self, batch, batch_idx):
-        
-        if self.add_highres_encoding or self.highres_forecasting:
-            input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
-            input_highres_q = self.normalize(input_highres_q)
-            target_highres_q = self.normalize(target_highres_q)
-        else: 
-            input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
 
-        input_lowres_q = self.normalize(input_lowres_q)
-        target_lowres_q = self.normalize(target_lowres_q)
-        input_lowres_forcing = self.normalize(input_lowres_forcing)
+        if not self.autoregressive:
         
-        if self.highres_forecasting:
-            input = input_highres_q
-            target = target_highres_q
-        else: 
-            input = input_lowres_q
-            target = target_lowres_q
+            if self.add_highres_encoding or self.highres_forecasting:
+                input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
+                input_highres_q = self.normalize(input_highres_q)
+                target_highres_q = self.normalize(target_highres_q)
+            else: 
+                input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
+
+            input_lowres_q = self.normalize(input_lowres_q)
+            target_lowres_q = self.normalize(target_lowres_q)
+            input_lowres_forcing = self.normalize(input_lowres_forcing)
             
-        if self.add_highres_encoding:
-            preds = self.forward(input, highres_x = input_highres_q)
-        elif self.add_forcing:
-            preds = self.forward(input, forcing = input_lowres_forcing)
-        else:
-            preds = self.forward(input)
+            if self.highres_forecasting:
+                input = input_highres_q
+                target = target_highres_q
+            else: 
+                input = input_lowres_q
+                target = target_lowres_q
+                
+            if self.add_highres_encoding:
+                preds = self.forward(input, highres_x = input_highres_q)
+            elif self.add_forcing:
+                preds = self.forward(input, forcing = input_lowres_forcing)
+            else:
+                preds = self.forward(input)
 
-        loss = nn.MSELoss()(preds, target)
+            loss = nn.MSELoss()(preds, target)
+
+        else:
+
+            lowres_q, lowres_forcing, highres_q = batch
+        
+            input_lowres_q = self.normalize(lowres_q[:, 0])
+
+            preds = input_lowres_q
+            loss = None
+            for i in range(lowres_q.shape[1]-1):
+
+                if self.add_highres_encoding:
+                    highres_q_i = self.normalize(highres_q[:, i])
+                    preds = self.forward(preds, highres_x = highres_q_i)
+                else:
+                    preds = self.forward(preds)
+                
+                target = self.normalize(lowres_q[:, i+1])
+                if loss is None:
+                    loss = nn.MSELoss()(preds, target)
+                else:
+                    loss += nn.MSELoss()(preds, target)
 
         self.log(
             'train/MSE',
@@ -193,7 +217,7 @@ class ForecastModel(pl.LightningModule):
             target = self.normalize(lowres_q[:, -1])
 
             preds = input_lowres_q
-            for i in range(lowres_q.shape[1]):
+            for i in range(lowres_q.shape[1]-1):
                 highres_q_i = self.normalize(highres_q[:, i])
                 
                 preds = self.forward(preds, highres_x = highres_q_i)

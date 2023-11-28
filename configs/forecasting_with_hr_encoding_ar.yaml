@@ -1,5 +1,5 @@
 training:
-  batch_size: 128
+  batch_size: 64
   max_epochs: 200
 
 model:
