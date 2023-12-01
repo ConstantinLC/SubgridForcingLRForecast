@@ -5,6 +5,7 @@ from utils.activations import ACTIVATION_REGISTRY
 import torch.optim as optim
 from forecast.module import ForecastModel
 from subgrid_parametrization import SubgridParametrization
+from kornia.filters import box_blur, blur_pool2d
     
 class ParametrizationTeachingLearnedForcing(pl.LightningModule):
     def __init__(self, 
@@ -29,7 +30,7 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
         # 3. load the new state dict
         self.teacher_model.load_state_dict(teacher_model_dict)
 
-        self.teacher_model = self.teacher_model.hr_encoder
+        self.teacher_model = self.teacher_model.pre_forecast_hr
 
         for param in self.teacher_model.parameters():
             param.requires_grad = False
@@ -39,7 +40,7 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
 
     def forward(self, x, highres_x):
         #self.teacher_model.eval()
-        target = self.teacher_model(highres_x)
+        target = self.teacher_model(blur_pool2d(highres_x, kernel_size=(4,4), stride=4))
         target = self.normalize(target)
         output = self.parametrization(x)
 
@@ -143,5 +144,5 @@ class ParametrizationTeachingTrueForcing(pl.LightningModule):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=1e-3)
+        optimizer = optim.AdamW(self.parameters(), lr=5e-3)
         return optimizer

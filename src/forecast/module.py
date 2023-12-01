@@ -10,7 +10,7 @@ from kornia.filters import box_blur, blur_pool2d
 from forecast.unet import UNet2d, UNet2d_hr_encoder
 import numpy as np
 import xesmf as xe
-from fno import FNO2d
+from forecast.fno import FNO2d
 
 class ForecastModel(pl.LightningModule):
     """Our interpretation of the original U-Net architecture.
@@ -42,6 +42,7 @@ class ForecastModel(pl.LightningModule):
         add_parametrization=False,
         highres_forecasting=False,
         autoregressive=False,
+        residual_mode=False,
         parametrization_path=None
     ) -> None:
         super().__init__()
@@ -58,13 +59,14 @@ class ForecastModel(pl.LightningModule):
         self.highres_forecasting = highres_forecasting
         self.parametrization_path = parametrization_path
         self.autoregressive = autoregressive
+        self.residual_mode = residual_mode
             
         self.n_added_input_components = self.n_input_scalar_components * (int(self.add_forcing) + 
                                            int(self.add_highres_encoding) + 
                                            int(self.add_parametrization))
         
         if self.add_highres_encoding:
-            self.pre_forecast_hr = UNet2d_hr_encoder(in_channels=2, out_channels=2)
+            self.pre_forecast_hr = UNet2d(in_channels=2, out_channels=2)
         else:
             self.pre_forecast_lr = UNet2d(in_channels=2, out_channels=2)
         
@@ -84,28 +86,26 @@ class ForecastModel(pl.LightningModule):
             for param in self.subgrid_parametrization.parameters():
                 param.requires_grad = False
 
-        self.unet = UNet2d(in_channels=self.n_input_scalar_components * (2 + int(self.add_parametrization)), out_channels=2)
+        self.unet = UNet2d(in_channels=self.n_input_scalar_components * (2 + self.add_parametrization), out_channels=2)
 
     def forward(self, x, forcing=None, highres_x=None):
         if self.add_highres_encoding:
-            x_pre_forecast = self.pre_forecast_hr(highres_x)
-            x = torch.cat((x, x_pre_forecast), dim=1)
+            x_pre_forecast = self.pre_forecast_hr(blur_pool2d(highres_x, kernel_size=(4,4), stride=4))
         elif self.add_forcing:
             x_pre_forecast = self.pre_forecast_lr(forcing)
-            x = torch.cat((x, x_pre_forecast), dim=1)
         else: #if not self.highres_forecasting:
-            x_pre_forecast = self.pre_forecast_lr(x) 
-            x = torch.cat((x, x_pre_forecast), dim=1)
-        
+            x_pre_forecast = self.pre_forecast_lr(x)
+
         if self.add_parametrization:
             x_encoded = self.subgrid_parametrization(x)
             x_cat = torch.cat((x, torch.zeros(x_encoded.shape).to(device='cuda')), dim=1)
             x_cat[:, -x_encoded.shape[1]:] = x_encoded
-            x = x_cat            
+            x = x_cat
+
+        x = torch.cat((x, x_pre_forecast), dim=1)
 
         preds = self.unet(x)
         return preds
-    
 
     def evaluate(self, x, y, metrics, input_highres_x=None):
         
@@ -140,7 +140,7 @@ class ForecastModel(pl.LightningModule):
                 target = target_lowres_q
                 
             if self.add_highres_encoding:
-                preds = self.forward(input, highres_x = input_highres_q)
+                preds = self.forward(input, highres_x = input_highres_q) 
             elif self.add_forcing:
                 preds = self.forward(input, forcing = input_lowres_forcing)
             else:
@@ -160,10 +160,10 @@ class ForecastModel(pl.LightningModule):
 
                 if self.add_highres_encoding:
                     highres_q_i = self.normalize(highres_q[:, i])
-                    preds = self.forward(preds, highres_x = highres_q_i)
+                    preds = self.forward(preds, highres_x = highres_q_i) + preds
                 else:
-                    preds = self.forward(preds)
-                
+                    preds = self.forward(preds) + preds
+
                 target = self.normalize(lowres_q[:, i+1])
                 if loss is None:
                     loss = nn.MSELoss()(preds, target)
@@ -218,9 +218,14 @@ class ForecastModel(pl.LightningModule):
 
             preds = input_lowres_q
             for i in range(lowres_q.shape[1]-1):
-                highres_q_i = self.normalize(highres_q[:, i])
-                
-                preds = self.forward(preds, highres_x = highres_q_i)
+
+                if self.add_highres_encoding:
+                    highres_q_i = self.normalize(highres_q[:, i])
+                    preds = self.forward(preds, highres_x = highres_q_i) + preds
+                else:
+                    preds = self.forward(preds) + preds
+
+                #preds += self.normalize(lowres_q[:, i])
 
         loss = nn.MSELoss()(preds, target)
 

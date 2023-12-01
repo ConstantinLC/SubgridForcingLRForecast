@@ -23,7 +23,7 @@ class DataModule(pl.LightningDataModule):
         if self.autoregressive:
             train_ds = PyQGXArrayDataset_Highres_AR(data_dir=self.data_dir, start_run=0, end_run=self.end_run_train, shuffle=True, lead_time=self.lead_time)
         else:
-            train_ds = PyQGXArrayDataset_Highres_AR(data_dir=self.data_dir, start_run=0, end_run=self.end_run_train, shuffle=True, lead_time=self.lead_time)
+            train_ds = PyQGXArrayDataset_Highres(data_dir=self.data_dir, start_run=0, end_run=self.end_run_train, shuffle=True, lead_time=self.lead_time)
         return DataLoader(train_ds, batch_size=self.batch_size, num_workers=self.num_workers, prefetch_factor=1)
     
     def val_dataloader(self):

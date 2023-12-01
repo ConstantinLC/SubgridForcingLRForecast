@@ -16,12 +16,12 @@ data:
   num_workers: 5
   data_dir: "/mnt/SSD2/constantin/data/pyqg"
   data_generation: "pyqg_leadtime_100hours"
-  lead_time: 5
+  lead_time: 1
 
 pipeline:
   highres_forecasting: False
   add_parametrization: True
   add_highres_encoding: False
   add_forcing: False
-  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-63-val_MSE0.08.ckpt'
-
+  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-25-val_MSE0.03.ckpt'
+  autoregressive: False

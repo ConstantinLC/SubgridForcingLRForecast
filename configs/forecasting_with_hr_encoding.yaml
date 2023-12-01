@@ -24,3 +24,4 @@ pipeline:
   add_highres_encoding: True
   add_forcing: False
   parametrization_path: None
+  autoregressive: False
