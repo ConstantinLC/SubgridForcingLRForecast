@@ -40,7 +40,7 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
 
     def forward(self, x, highres_x):
         #self.teacher_model.eval()
-        target = self.teacher_model(blur_pool2d(highres_x, kernel_size=(4,4), stride=4))
+        target = self.teacher_model(highres_x)
         target = self.normalize(target)
         output = self.parametrization(x)
 
@@ -144,5 +144,5 @@ class ParametrizationTeachingTrueForcing(pl.LightningModule):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=5e-3)
+        optimizer = optim.AdamW(self.parameters(), lr=1e-2)
         return optimizer

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 from utils.activations import ACTIVATION_REGISTRY
-from forecast.unet import UNet2d
+from forecast.unet import UNet2d, UNet2d_hr_encoder_simple_lr
 from collections import OrderedDict
 
 
@@ -19,7 +19,7 @@ class SubgridParametrization(nn.Module):
         self.n_output_scalar_components = n_output_scalar_components
         
         # Encoder layers
-        self.model = nn.Sequential(
+        """self.model = nn.Sequential(
             nn.Conv2d(self.n_input_scalar_components, 128, kernel_size=3, padding='same'),
             nn.Tanh(),
             nn.Conv2d(128, 128, kernel_size=3, padding='same'),
@@ -37,13 +37,10 @@ class SubgridParametrization(nn.Module):
             nn.Conv2d(128, 128, kernel_size=3, padding='same'),
             nn.Tanh(),
             nn.Conv2d(128, self.n_output_scalar_components, kernel_size=3, padding='same'),
-        )
-        #self.model = ResNetGenerator(2, 2)
-
-        #self.model = UNet2d(self.n_input_scalar_components, self.n_output_scalar_components)
+        )"""
         
-        """self.model = nn.Sequential(
-            nn.Conv2d(self.n_input_scalar_components, 256, kernel_size=5, padding='same'),  # 64x128x40
+        self.model = nn.Sequential(
+            nn.Conv2d(self.n_input_scalar_components, 256, kernel_size=3, padding='same'),  # 64x128x40
             nn.LeakyReLU(0.2),
             nn.Conv2d(256, 128, kernel_size=3, padding='same'),  # 64x128x40
             nn.LeakyReLU(0.2),
@@ -51,9 +48,8 @@ class SubgridParametrization(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Conv2d(64, 64, kernel_size=3, padding='same'),  # 64x128x40
             nn.LeakyReLU(0.2),
-            nn.Conv2d(64, self.n_output_scalar_components, kernel_size=3, padding='same'),  # 64x128x40
-            nn.LeakyReLU(0.2)
-        )"""
+            nn.Conv2d(64, self.n_output_scalar_components, kernel_size=3, padding='same')  # 64x128x40
+        )
 
     def forward(self, x):
         preds = self.model(x)

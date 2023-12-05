@@ -50,7 +50,7 @@ def main():
             n_output_scalar_components=2)
     else:
         parametrization_teaching = ParametrizationTeachingLearnedForcing(
-            pretrained_forecast_path= '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-38-val_MSE0.03.ckpt', #model-198-val_MSE0.01.ckpt',
+            pretrained_forecast_path= '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-36-val_MSE0.022.ckpt', #model-198-val_MSE0.01.ckpt',
             n_input_scalar_components=2,
             n_output_scalar_components=2)
     parametrization_teaching.cuda()

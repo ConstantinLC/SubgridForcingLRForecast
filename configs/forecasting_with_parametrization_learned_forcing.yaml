@@ -4,7 +4,7 @@ training:
 
 model:
   architecture: "UNet"
-  learning_rate: 5e-3
+  learning_rate: 1e-2
   n_input_scalar_components: 2
   n_output_scalar_components: 2
   time_history: 1
@@ -23,5 +23,6 @@ pipeline:
   add_parametrization: True
   add_highres_encoding: False
   add_forcing: False
-  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-25-val_MSE0.03.ckpt'
+  parametrization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-53-val_MSE0.12.ckpt'
   autoregressive: False
+  joint_training: True

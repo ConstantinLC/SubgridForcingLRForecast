@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 import torch
 from datamodule import DataModule
-from forecast.module import ForecastModel
+from forecast.module import ForecastModel, ForecastModelJoint
 from utils.utils_config import parse_arguments, load_configuration
 
 import torch.multiprocessing
@@ -25,7 +25,7 @@ def main():
 
     wandb.init(
         # set the wandb project where this run will be logged
-        project="subgrid_parameterization_for_ml",
+        project="forecast_with_hr_encoding-joint_hr_lr_training",
         name=config_file,
         config=config
     )
@@ -42,16 +42,13 @@ def main():
         monitor='val/MSE',
         mode='min',
         dirpath='/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast',
-        filename='model-{epoch:02d}-val_MSE{val/MSE:.2f}',
+        filename='model-{epoch:02d}-val_MSE{val/MSE:.3f}',
         auto_insert_metric_name=False
     )
 
-    model = ForecastModel(n_input_scalar_components=config['model']['n_input_scalar_components'],
+    if config['pipeline']['add_parametrization'] and config['pipeline']['joint_training']:
+        model = ForecastModelJoint(n_input_scalar_components=config['model']['n_input_scalar_components'],
                           n_output_scalar_components=config['model']['n_output_scalar_components'], 
-                          time_history=config['model']['time_history'], 
-                          time_future=config['model']['time_future'], 
-                          hidden_channels=config['model']['hidden_channels'], 
-                          activation=config['model']['activation'], 
                           learning_rate=float(config['model']['learning_rate']),
                           add_forcing=config['pipeline']['add_forcing'], 
                           add_highres_encoding=config['pipeline']['add_highres_encoding'],
@@ -59,6 +56,18 @@ def main():
                           highres_forecasting=config['pipeline']['highres_forecasting'],
                           parametrization_path=config['pipeline']['parametrization_path'],
                           autoregressive=config['pipeline']['autoregressive'])
+
+    else:
+        model = ForecastModel(n_input_scalar_components=config['model']['n_input_scalar_components'],
+                            n_output_scalar_components=config['model']['n_output_scalar_components'], 
+                            learning_rate=float(config['model']['learning_rate']),
+                            add_forcing=config['pipeline']['add_forcing'], 
+                            add_highres_encoding=config['pipeline']['add_highres_encoding'],
+                            add_parametrization=config['pipeline']['add_parametrization'],
+                            highres_forecasting=config['pipeline']['highres_forecasting'],
+                            parametrization_path=config['pipeline']['parametrization_path'],
+                            autoregressive=config['pipeline']['autoregressive'])
+
 
     model.cuda()
 
