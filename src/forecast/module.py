@@ -260,7 +260,7 @@ class ForecastModelJoint(pl.LightningModule):
                                            int(self.add_highres_encoding) + 
                                            int(self.add_parametrization))
         
-        self.pre_forecast_hr = UNet2d_hr_encoder(in_channels=2, out_channels=2, init_features=32)
+        self.pre_forecast_hr = UNet2d_hr_encoder_simple(in_channels=2, out_channels=2, init_features=32)
         
         self.unet = UNet2d(in_channels=self.n_input_scalar_components * 2, out_channels=2)
         
@@ -274,9 +274,12 @@ class ForecastModelJoint(pl.LightningModule):
         x_pre_forecast_lr = self.subgrid_parametrization(x)
         
         if noise:
-            x_pre_forecast_hr += torch.randn(x_pre_forecast_hr.shape).to(device='cuda') * 0.01
-
-        preds_hr = self.unet(torch.cat((x, x_pre_forecast_hr), dim=1))
+            preds_hr = self.unet(torch.cat((x, x_pre_forecast_hr + torch.randn(x_pre_forecast_hr.shape).to(device='cuda') * 0.1), dim=1))
+        else:
+            preds_hr = self.unet(torch.cat((x, x_pre_forecast_hr), dim=1))
+            #x_pre_forecast_hr += torch.randn(x_pre_forecast_hr.shape).to(device='cuda') * 0.01
+        
+        
         preds_lr = self.unet(torch.cat((x, x_pre_forecast_lr), dim=1))
 
         return x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr
@@ -297,11 +300,12 @@ class ForecastModelJoint(pl.LightningModule):
         
         x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr = self.forward(input, highres_x = input_highres_q, noise=True) 
             
-        loss_joint = nn.MSELoss()(x_pre_forecast_hr, x_pre_forecast_lr)
+        #loss_joint = nn.MSELoss()(x_pre_forecast_hr, x_pre_forecast_lr)
+        loss_joint = nn.MSELoss()(preds_hr, preds_lr)
         loss_forecast_hr_encoding = nn.MSELoss()(preds_hr, target_lowres_q)
         loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
 
-        loss = 10*loss_joint + loss_forecast_hr_encoding + 10*loss_forecast_parameterization
+        loss = loss_joint + loss_forecast_hr_encoding + loss_forecast_parameterization
 
         self.log('train/MSE', loss, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log('train/MSE_joint', loss_joint, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
