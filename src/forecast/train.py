@@ -25,7 +25,7 @@ def main():
 
     wandb.init(
         # set the wandb project where this run will be logged
-        project="forecast_with_hr_encoding-joint_hr_lr_training",
+        project="joint_hr_lr_training-hr_encoding_predicts_lr",
         name=config_file,
         config=config
     )

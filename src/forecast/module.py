@@ -267,11 +267,17 @@ class ForecastModelJoint(pl.LightningModule):
         self.subgrid_parametrization = SubgridParametrization(
                         n_input_scalar_components=self.n_input_scalar_components,
                         n_output_scalar_components=2)
+        
+        self.inverse_subgrid_parameterization = SubgridParametrization(
+                        n_input_scalar_components=self.n_input_scalar_components,
+                        n_output_scalar_components=2)
 
     def forward(self, x, forcing=None, highres_x=None, noise=False):
         
         x_pre_forecast_hr = self.pre_forecast_hr(highres_x)
         x_pre_forecast_lr = self.subgrid_parametrization(x)
+
+        lr_pred_from_hr_enc = self.inverse_subgrid_parameterization(x_pre_forecast_lr)
         
         if noise:
             preds_hr = self.unet(torch.cat((x, x_pre_forecast_hr + torch.randn(x_pre_forecast_hr.shape).to(device='cuda') * 0.1), dim=1))
@@ -279,10 +285,9 @@ class ForecastModelJoint(pl.LightningModule):
             preds_hr = self.unet(torch.cat((x, x_pre_forecast_hr), dim=1))
             #x_pre_forecast_hr += torch.randn(x_pre_forecast_hr.shape).to(device='cuda') * 0.01
         
-        
         preds_lr = self.unet(torch.cat((x, x_pre_forecast_lr), dim=1))
 
-        return x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr
+        return x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr, lr_pred_from_hr_enc
 
     def normalize(self, tensor):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
@@ -293,22 +298,20 @@ class ForecastModelJoint(pl.LightningModule):
 
         input_lowres_q = self.normalize(input_lowres_q)
         target_lowres_q = self.normalize(target_lowres_q)
-        input_lowres_forcing = self.normalize(input_lowres_forcing)
         
         input = input_lowres_q
         target = target_lowres_q
         
-        x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr = self.forward(input, highres_x = input_highres_q, noise=True) 
+        x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr, lr_pred_from_hr_enc = self.forward(input, highres_x = input_highres_q, noise=False) 
             
-        #loss_joint = nn.MSELoss()(x_pre_forecast_hr, x_pre_forecast_lr)
-        loss_joint = nn.MSELoss()(preds_hr, preds_lr)
+        loss_pred_lr_from_encoding = nn.MSELoss()(lr_pred_from_hr_enc, input_lowres_q)
         loss_forecast_hr_encoding = nn.MSELoss()(preds_hr, target_lowres_q)
         loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
 
-        loss = loss_joint + loss_forecast_hr_encoding + loss_forecast_parameterization
+        loss = loss_pred_lr_from_encoding + loss_forecast_hr_encoding + loss_forecast_parameterization
 
         self.log('train/MSE', loss, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log('train/MSE_joint', loss_joint, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log('train/MSE_pred_lr_from_encoding', loss_pred_lr_from_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log('train/MSE_forecast_hr_encoding', loss_forecast_hr_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log('train/MSE_forecast_parameterization', loss_forecast_parameterization, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
 
@@ -324,16 +327,16 @@ class ForecastModelJoint(pl.LightningModule):
         input = input_lowres_q
         target = target_lowres_q
         
-        x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr = self.forward(input, highres_x = input_highres_q) 
+        x_pre_forecast_hr, x_pre_forecast_lr, preds_hr, preds_lr, lr_pred_from_hr_enc = self.forward(input, highres_x = input_highres_q, noise=False) 
             
-        loss_joint = nn.MSELoss()(x_pre_forecast_hr, x_pre_forecast_lr)
+        loss_pred_lr_from_encoding = nn.MSELoss()(lr_pred_from_hr_enc, input_lowres_q)
         loss_forecast_hr_encoding = nn.MSELoss()(preds_hr, target_lowres_q)
         loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
 
-        loss = 10*loss_joint + loss_forecast_hr_encoding + loss_forecast_parameterization
+        loss = loss_pred_lr_from_encoding + loss_forecast_hr_encoding + loss_forecast_parameterization
 
         self.log('val/MSE', loss, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log('val/MSE_joint', loss_joint, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log('val/MSE_pred_lr_from_encoding', loss_pred_lr_from_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log('val/MSE_forecast_hr_encoding', loss_forecast_hr_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log('val/MSE_forecast_parameterization', loss_forecast_parameterization, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
 
