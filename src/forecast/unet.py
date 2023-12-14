@@ -7,7 +7,7 @@ import torch.nn as nn
 
 class UNet2d(nn.Module):
 
-    def __init__(self, in_channels=3, out_channels=1, init_features=32):
+    def __init__(self, in_channels=2, out_channels=2, init_features=32):
         super(UNet2d, self).__init__()
 
         features = init_features
@@ -101,7 +101,7 @@ class UNet2d(nn.Module):
 
 class UNet2d_hr_encoder(nn.Module):
 
-    def __init__(self, in_channels=3, out_channels=1, init_features=16):
+    def __init__(self, in_channels=2, out_channels=2, init_features=16):
         super(UNet2d_hr_encoder, self).__init__()
 
         features = init_features
@@ -128,6 +128,7 @@ class UNet2d_hr_encoder(nn.Module):
         self.conv = nn.Conv2d(
             in_channels=features * 4, out_channels=out_channels, kernel_size=1
         )
+        self.last_bn = nn.BatchNorm2d(num_features=2)
 
     def forward(self, x):
         enc1 = self.encoder1(x)
@@ -144,7 +145,7 @@ class UNet2d_hr_encoder(nn.Module):
         dec3 = torch.cat((dec3, enc3), dim=1)
         dec3 = self.decoder3(dec3)
     
-        return self.conv(dec3)
+        return self.last_bn(self.conv(dec3))
 
     @staticmethod
     def _block(in_channels, features, name):

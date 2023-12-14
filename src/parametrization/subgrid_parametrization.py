@@ -37,7 +37,10 @@ class SubgridParametrization(nn.Module):
             nn.Conv2d(128, 128, kernel_size=3, padding='same'),
             nn.Tanh(),
             nn.Conv2d(128, self.n_output_scalar_components, kernel_size=3, padding='same'),
+            #nn.BatchNorm2d(num_features=2)
         )"""
+        
+        #self.model = UNet2d()
         
         self.model = nn.Sequential(
             nn.Conv2d(self.n_input_scalar_components, 256, kernel_size=3, padding='same'),  # 64x128x40
@@ -48,7 +51,8 @@ class SubgridParametrization(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Conv2d(64, 64, kernel_size=3, padding='same'),  # 64x128x40
             nn.LeakyReLU(0.2),
-            nn.Conv2d(64, self.n_output_scalar_components, kernel_size=3, padding='same')  # 64x128x40
+            nn.Conv2d(64, self.n_output_scalar_components, kernel_size=3, padding='same'),  # 64x128x40
+            nn.BatchNorm2d(num_features=2)
         )
 
     def forward(self, x):
