@@ -12,7 +12,8 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
                 pretrained_forecast_path: str,
                 n_input_scalar_components: int = 2,
                 n_output_scalar_components: int = 2,
-                img_size=[64, 64]
+                img_size = [64, 64],
+                learning_rate = 1e-4
         ):
         super(ParametrizationTeachingLearnedForcing, self).__init__()
 
@@ -27,6 +28,7 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
 
         self.parametrization = SubgridParametrization(n_input_scalar_components, n_output_scalar_components, img_size)
         self.loss_fn = nn.MSELoss()
+        self.learning_rate = learning_rate
 
     def forward(self, x, highres_x):
         #self.teacher_model.eval()
@@ -133,5 +135,5 @@ class ParametrizationTeachingTrueForcing(pl.LightningModule):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=1e-3)
+        optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate)
         return optimizer

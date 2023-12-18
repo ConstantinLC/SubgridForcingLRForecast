@@ -128,7 +128,7 @@ class UNet2d_hr_encoder(nn.Module):
         self.conv = nn.Conv2d(
             in_channels=features * 4, out_channels=out_channels, kernel_size=1
         )
-        self.last_bn = nn.BatchNorm2d(num_features=2)
+        self.last_bn = nn.Tanh() #nn.BatchNorm2d(num_features=2)
 
     def forward(self, x):
         enc1 = self.encoder1(x)
