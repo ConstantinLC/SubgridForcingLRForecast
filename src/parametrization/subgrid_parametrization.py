@@ -19,7 +19,7 @@ class SubgridParametrization(nn.Module):
         self.n_output_scalar_components = n_output_scalar_components
         
         # Encoder layers
-        n_features=128
+        n_features=256
         self.model = nn.Sequential(
             nn.Conv2d(self.n_input_scalar_components, n_features, kernel_size=3, padding='same'),
             nn.Tanh(),

@@ -43,7 +43,7 @@ def main():
         monitor='val/MSE',
         mode='min',
         dirpath='/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast',
-        filename='model-{epoch:02d}-{experiment_name}-val_MSE{val/MSE:.4f}',
+        filename='model-{epoch:02d}-'+ experiment_name + '-val_MSE{val/MSE:.4f}',
         auto_insert_metric_name=False
     )
 
@@ -70,8 +70,13 @@ def main():
 
     wandb_logger = WandbLogger()
     trainer = pl.Trainer(max_epochs=config['training']['max_epochs'], accelerator="gpu", devices=1, callbacks=[checkpoint_callback, early_stopping_callback], logger=wandb_logger)
-    #trainer.validate(model, datamodule)
     trainer.fit(model, datamodule)
+    
+    if config['pipeline']['validate_only']:
+        trainer.validate(model, datamodule)
+    else:
+        trainer.fit(model, datamodule)
+    
 
 if __name__ == '__main__':
     main()

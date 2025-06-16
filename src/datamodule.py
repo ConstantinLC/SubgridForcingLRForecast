@@ -1,7 +1,6 @@
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
-from dataset import PyQGXArrayDataset_Lowres
 from dataset_highres import PyQGXArrayDataset_Highres, PyQGXArrayDataset_Highres_AR
 
 class DataModule(pl.LightningDataModule):
