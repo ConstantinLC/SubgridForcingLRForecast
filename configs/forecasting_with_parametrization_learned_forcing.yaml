@@ -11,8 +11,6 @@ model:
   time_future: 1
   hidden_channels: 32
   activation: "leaky relu"
-  pretrained_forecast_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-57-val_MSE0.022.ckpt'
-  pretrained_parameterization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-16-val_MSE0.01.ckpt'
 
 parameterization:
   learning_rate: 1e-3
@@ -29,6 +27,8 @@ pipeline:
   add_parametrization: True
   add_highres_encoding: False
   add_forcing: False
-  parametrization_path: None
   autoregressive: False
   noise_level: 0
+  pretrained_forecast_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-57-val_MSE0.022.ckpt'
+  pretrained_parameterization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-88-val_MSE0.60.ckpt'
+  validate_only: False

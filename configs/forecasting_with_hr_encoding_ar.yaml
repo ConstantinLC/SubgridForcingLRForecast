@@ -25,3 +25,4 @@ pipeline:
   add_forcing: False
   parametrization_path: None
   autoregressive: True
+  pretrained_forecast_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-54-val_MSE0.016.ckpt'

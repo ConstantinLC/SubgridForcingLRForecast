@@ -6,14 +6,15 @@ from utils.activations import ACTIVATION_REGISTRY
 import torch.optim as optim
 from parametrization.subgrid_parametrization import SubgridParametrization
 import glob
-from kornia.filters import box_blur, blur_pool2d
+#from kornia.filters import box_blur, blur_pool2d
 from forecast.unet import UNet2d, UNet2d_hr_encoder, UNet2d_hr_encoder_bottleneck, UNet2d_hr_encoder_simple, UNet2d_hr_encoder_simple_lr
 import numpy as np
-import xesmf as xe
+#import xesmf as xe
 from forecast.fno import FNO2d
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR
 import torch.fft as fft
 from matplotlib import pyplot as plt
+from torchmetrics.regression import PearsonCorrCoef
 
 class ForecastModel(pl.LightningModule):
 
@@ -59,30 +60,34 @@ class ForecastModel(pl.LightningModule):
                         n_input_scalar_components=self.n_input_scalar_components,
                         n_output_scalar_components=2)
         
-        self.unet = UNet2d(in_channels=self.n_input_scalar_components * 2, out_channels=2)
+        self.unet = UNet2d(in_channels=self.n_input_scalar_components, out_channels=2)
 
 
         self.noise_level = noise_level
         
         # Pretrained with laplace noise 0.2 : model-100-val_MSE0.016.ckpt, corresponding pretrained parameterization: model-163-val_MSE0.34.ckpt
         # Forecast then fine-tuned with parameterization and forecast model: model-08-val_MSE0.036.ckpt
-        if self.pretrained_forecast_path != '':
+        """if self.pretrained_forecast_path != '':
+            #self.pretrained_forecast_path = '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-08-val_MSE0.036.ckpt'
             pretrained_dict = torch.load(self.pretrained_forecast_path)['state_dict']
             self.unet.load_state_dict({k.replace("unet.",""): v for k, v in pretrained_dict.items() if "unet" in k})
-
             #for param in self.unet.parameters():
             #    param.requires_grad = False
-            self.pre_forecast_hr.load_state_dict({k.replace("pre_forecast_hr.",""): v for k, v in pretrained_dict.items() if "pre_forecast_hr" in k})
+            if self.add_highres_encoding:
+                self.pre_forecast_hr.load_state_dict({k.replace("pre_forecast_hr.",""): v for k, v in pretrained_dict.items() if "pre_forecast_hr" in k})
+            elif not self.add_parametrization:
+                self.pre_forecast_lr.load_state_dict({k.replace("pre_forecast_lr.",""): v for k, v in pretrained_dict.items() if "pre_forecast_lr" in k})
             #self.inverse_subgrid_parameterization.load_state_dict({k.replace("inverse_subgrid_parameterization.",""): v for k, v in pretrained_dict.items() if "inverse_subgrid_parameterization" in k}) 
         
         if self.pretrained_parameterization_path != '':
+            #self.pretrained_parameterization_path = '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-08-val_MSE0.036.ckpt'
             pretrained_dict = torch.load(self.pretrained_parameterization_path)['state_dict']
 
-            self.subgrid_parametrization.load_state_dict({k.replace("parametrization.",""): v for k, v in pretrained_dict.items() if "parametrization" in k})  
+            self.subgrid_parametrization.load_state_dict({k.replace("subgrid_parametrization.",""): v for k, v in pretrained_dict.items() if "subgrid_parametrization" in k})  
             
             #for param in self.subgrid_parametrization.parameters():
             #    param.requires_grad = False
-
+        """
     def forward(self, x, forcing=None, highres_x=None, noise=False):
         
         #distribution = torch.distributions.laplace.Laplace(loc=0, scale=0.3)
@@ -109,9 +114,9 @@ class ForecastModel(pl.LightningModule):
         #plt.show()
         #hr_encoding = x_noisy
 
-        if self.pretrained_parameterization_path is None: 
+        if self.add_highres_encoding:
             pre_forecast_encoding = self.pre_forecast_hr(highres_x)
-        elif self.add_highres_encoding:
+        elif self.add_parametrization:
             pre_forecast_encoding = self.subgrid_parametrization(x)
         else:
             pre_forecast_encoding = self.pre_forecast_lr(x)
@@ -122,7 +127,8 @@ class ForecastModel(pl.LightningModule):
         else:
             pre_forecast_encoding = pre_forecast_encoding
 
-        preds = self.unet(torch.cat((x, pre_forecast_encoding), dim=1))
+        #preds = self.unet(torch.cat((x, pre_forecast_encoding), dim=1))
+        preds = self.unet(x)
 
         return None, None, preds, None, None
 
@@ -131,54 +137,95 @@ class ForecastModel(pl.LightningModule):
     
     def training_step(self, batch, batch_idx):
         
-        input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
-
-        input_lowres_q = self.normalize(input_lowres_q)
-        target_lowres_q = self.normalize(target_lowres_q)
-        input_highres_q = self.normalize(input_highres_q)
-        
-        input = input_lowres_q
-        target = target_lowres_q
-        
-        x_pre_forecast_hr, x_pre_forecast_lr, preds, preds_lr, lr_pred_from_hr_enc = self.forward(input, highres_x = input_highres_q, noise=True) 
+        if not self.autoregressive:
             
-        #loss_pred_lr_from_encoding = nn.MSELoss()(lr_pred_from_hr_enc, input_lowres_q)
-        loss_forecast_hr_encoding = nn.MSELoss()(preds, target_lowres_q)
-        #loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
+            input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
 
-        loss = loss_forecast_hr_encoding #+ loss_pred_lr_from_encoding #loss_forecast_parameterization
+            input_lowres_q = self.normalize(input_lowres_q)
+            target_lowres_q = self.normalize(target_lowres_q)
+            input_highres_q = self.normalize(input_highres_q)
+            
+            input = input_lowres_q
+            target = target_lowres_q
+            
+            x_pre_forecast_hr, x_pre_forecast_lr, preds, preds_lr, lr_pred_from_hr_enc = self.forward(input, highres_x = input_highres_q, noise=True) 
+                
+            #loss_pred_lr_from_encoding = nn.MSELoss()(lr_pred_from_hr_enc, input_lowres_q)
+            loss_forecast_hr_encoding = nn.MSELoss()(preds, target_lowres_q)
+            #loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
+
+            loss = loss_forecast_hr_encoding #+ loss_pred_lr_from_encoding #loss_forecast_parameterization
+
+        else: 
+            
+            lowres_q, lowres_forcing, highres_q = batch
+
+            input_lowres_q = self.normalize(lowres_q[:, 0])
+            target = self.normalize(lowres_q[:, -1])
+            #print(input_lowres_q.shape)
+            preds = input_lowres_q
+            loss = None
+            for i in range(lowres_q.shape[1]-1):
+                #print(i)
+                if self.add_highres_encoding:
+                    highres_q_i = self.normalize(highres_q[:, i])
+                    _, _, preds, _, _ = self.forward(preds, highres_x = highres_q_i) #+ preds
+                else:
+                    _, _, preds, _, _ = self.forward(preds) #+ preds
+
+                target = self.normalize(lowres_q[:, i+1])
+                if loss is None:
+                    loss = nn.MSELoss()(preds, target)
+                else:
+                    loss += nn.MSELoss()(preds, target)
 
         self.log('train/MSE', loss, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        #self.log('train/MSE_pred_lr_from_encoding', loss_pred_lr_from_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log('train/MSE_forecast_hr_encoding', loss_forecast_hr_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        #self.log('train/MSE_forecast_parameterization', loss_forecast_parameterization, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-
+        
         return loss
 
     def validation_step(self, batch, batch_idx):
         
-        input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
+        if not self.autoregressive:
 
-        input_lowres_q = self.normalize(input_lowres_q)
-        target_lowres_q = self.normalize(target_lowres_q)
-        input_highres_q = self.normalize(input_highres_q)
-        
-        input = input_lowres_q
-        target = target_lowres_q
-        
-        x_pre_forecast_hr, x_pre_forecast_lr, preds, preds_lr, lr_pred_from_hr_enc = self.forward(input, highres_x = input_highres_q, noise=False) 
+            input_lowres_q, target_lowres_q, input_lowres_forcing, input_highres_q, target_highres_q = batch
+
+            input_lowres_q = self.normalize(input_lowres_q)
+            target_lowres_q = self.normalize(target_lowres_q)
+            input_highres_q = self.normalize(input_highres_q)
             
-        #loss_pred_lr_from_encoding = nn.MSELoss()(lr_pred_from_hr_enc, input_lowres_q)
-        loss_forecast_hr_encoding = nn.MSELoss()(preds, target_lowres_q)
-        #loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
-        print(loss_forecast_hr_encoding)
+            input = input_lowres_q
+            target = target_lowres_q
+            
+            x_pre_forecast_hr, x_pre_forecast_lr, preds, preds_lr, lr_pred_from_hr_enc = self.forward(input, highres_x = input_highres_q, noise=False) 
+                
+            #loss_pred_lr_from_encoding = nn.MSELoss()(lr_pred_from_hr_enc, input_lowres_q)
+            loss_forecast_hr_encoding = nn.MSELoss()(preds, target_lowres_q)
+            #loss_forecast_parameterization = nn.MSELoss()(preds_lr, target_lowres_q)
+            print(loss_forecast_hr_encoding)
 
-        loss = loss_forecast_hr_encoding #+ loss_pred_lr_from_encoding #loss_forecast_parameterization
+            loss = loss_forecast_hr_encoding #+ loss_pred_lr_from_encoding #loss_forecast_parameterization
 
+        else:
+
+            lowres_q, lowres_forcing, highres_q = batch
+
+            input_lowres_q = self.normalize(lowres_q[:, 0])
+            target = self.normalize(lowres_q[:, -1])
+            #print(input_lowres_q.shape)
+            preds = input_lowres_q
+            for i in range(lowres_q.shape[1]-1):
+                #print(i)
+                if self.add_highres_encoding:
+                    highres_q_i = self.normalize(highres_q[:, i])
+                    _, _, preds, _, _ = self.forward(preds, highres_x = highres_q_i) #+ preds
+                else:
+                    _, _, preds, _, _ = self.forward(preds) #+ preds
+
+            loss = nn.MSELoss()(preds, target)
+            #print(preds.shape, target.shape)
+
+        self.log('val/pearson_cor', PearsonCorrCoef(num_outputs=preds.shape[0]).to(device='cuda')(torch.flatten(preds, start_dim=1).T, torch.flatten(target, start_dim=1).T).mean(), on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log('val/MSE', loss, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        #self.log('val/MSE_pred_lr_from_encoding', loss_pred_lr_from_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log('val/MSE_forecast_hr_encoding', loss_forecast_hr_encoding, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
-        #self.log('val/MSE_forecast_parameterization', loss_forecast_parameterization, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         
         #lr_value = self.trainer.optimizers[0].param_groups[0]['lr']
         #self.log('learning_rate', lr_value, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
