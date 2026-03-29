@@ -4,13 +4,14 @@ training:
 
 model:
   architecture: "UNet"
-  learning_rate: 1e-3
+  learning_rate: 1e-4
   n_input_scalar_components: 2
   n_output_scalar_components: 2
   time_history: 1
   time_future: 1
   hidden_channels: 32
   activation: "leaky relu"
+  
 
 parameterization:
   learning_rate: 1e-3
@@ -27,8 +28,7 @@ pipeline:
   add_parametrization: True
   add_highres_encoding: False
   add_forcing: False
+  pretrained_parameterization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-88-val_MSE0.60.ckpt' #model-16-val_MSE0.01.ckpt'
+  pretrained_forecast_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-57-val_MSE0.022.ckpt' #model-54-val_MSE0.016.ckpt'
   autoregressive: False
   noise_level: 0
-  pretrained_forecast_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-57-val_MSE0.022.ckpt'
-  pretrained_parameterization_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/parametrization/model-88-val_MSE0.60.ckpt'
-  validate_only: False

@@ -19,27 +19,31 @@ class SubgridParametrization(nn.Module):
         self.n_output_scalar_components = n_output_scalar_components
         
         # Encoder layers
-        """self.model = nn.Sequential(
-            nn.Conv2d(self.n_input_scalar_components, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, 128, kernel_size=3, padding='same'),
-            nn.Tanh(),
-            nn.Conv2d(128, self.n_output_scalar_components, kernel_size=3, padding='same'),
-        )"""
-        
+        n_features=256
         self.model = nn.Sequential(
+            nn.Conv2d(self.n_input_scalar_components, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, n_features, kernel_size=3, padding='same'),
+            nn.Tanh(),
+            nn.Conv2d(n_features, self.n_output_scalar_components, kernel_size=3, padding='same'),
+            nn.Tanh() #nn.BatchNorm2d(num_features=2)
+        )
+        
+        #self.model = UNet2d()
+        
+        """self.model = nn.Sequential(
             nn.Conv2d(self.n_input_scalar_components, 256, kernel_size=3, padding='same'),  # 64x128x40
             nn.LeakyReLU(0.2),
             nn.Conv2d(256, 128, kernel_size=3, padding='same'),  # 64x128x40
@@ -48,8 +52,9 @@ class SubgridParametrization(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Conv2d(64, 64, kernel_size=3, padding='same'),  # 64x128x40
             nn.LeakyReLU(0.2),
-            nn.Conv2d(64, self.n_output_scalar_components, kernel_size=3, padding='same')  # 64x128x40
-        )
+            nn.Conv2d(64, self.n_output_scalar_components, kernel_size=3, padding='same'),  # 64x128x40
+            nn.Tanh(),#BatchNorm2d(num_features=2)
+        )"""
 
     def forward(self, x):
         preds = self.model(x)

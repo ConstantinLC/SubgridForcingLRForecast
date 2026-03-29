@@ -3,7 +3,7 @@ from torch import nn
 import pytorch_lightning as pl
 from utils.activations import ACTIVATION_REGISTRY
 import torch.optim as optim
-from forecast.module import ForecastModel
+from forecast.module import ForecastModel, ForecastModelJoint
 from subgrid_parametrization import SubgridParametrization
 from kornia.filters import box_blur, blur_pool2d
     
@@ -12,36 +12,27 @@ class ParametrizationTeachingLearnedForcing(pl.LightningModule):
                 pretrained_forecast_path: str,
                 n_input_scalar_components: int = 2,
                 n_output_scalar_components: int = 2,
-                img_size=[64, 64]
+                img_size = [64, 64],
+                learning_rate = 1e-4
         ):
         super(ParametrizationTeachingLearnedForcing, self).__init__()
 
-        self.teacher_model = ForecastModel(n_input_scalar_components, n_output_scalar_components,
-                                        time_history=1, time_future=1, hidden_channels=32, activation="leaky relu", 
-                                        add_forcing=False, add_highres_encoding=True)
+        self.teacher_model = ForecastModelJoint(n_input_scalar_components, n_output_scalar_components,
+                                        add_forcing=False, add_highres_encoding=True).pre_forecast_hr
 
         pretrained_dict = torch.load(pretrained_forecast_path)['state_dict']
-        # Loading the pretrained dict partly, taken from https://discuss.pytorch.org/t/how-to-load-part-of-pre-trained-model/1113/2
-        teacher_model_dict = self.teacher_model.state_dict()
-        # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in teacher_model_dict}
-        # 2. overwrite entries in the existing snvi state dict
-        teacher_model_dict.update(pretrained_dict) 
-        # 3. load the new state dict
-        self.teacher_model.load_state_dict(teacher_model_dict)
-
-        self.teacher_model = self.teacher_model.pre_forecast_hr
+        self.teacher_model.load_state_dict({k.replace("pre_forecast_hr.",""): v for k, v in pretrained_dict.items() if "pre_forecast_hr" in k}) 
 
         for param in self.teacher_model.parameters():
             param.requires_grad = False
 
         self.parametrization = SubgridParametrization(n_input_scalar_components, n_output_scalar_components, img_size)
         self.loss_fn = nn.MSELoss()
+        self.learning_rate = learning_rate
 
     def forward(self, x, highres_x):
         #self.teacher_model.eval()
         target = self.teacher_model(highres_x)
-        target = self.normalize(target)
         output = self.parametrization(x)
 
         return output, target
@@ -144,5 +135,5 @@ class ParametrizationTeachingTrueForcing(pl.LightningModule):
         return (tensor - torch.mean(tensor, axis=(0, 2, 3), keepdims=True))/torch.std(tensor, axis=(0, 2, 3), keepdims=True)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=1e-2)
+        optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate)
         return optimizer

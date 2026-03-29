@@ -12,6 +12,10 @@ model:
   hidden_channels: 32
   activation: "leaky relu"
 
+parameterization:
+  learning_rate: 1e-4
+  pretrained_forecast_path: '/mnt/SSD2/constantin/subgrid_modelling/checkpoints/forecast/model-54-val_MSE0.016.ckpt'
+
 data:
   num_workers: 5
   data_dir: "/mnt/SSD2/constantin/data/pyqg"
@@ -23,5 +27,6 @@ pipeline:
   add_parametrization: False
   add_highres_encoding: True
   add_forcing: False
-  parametrization_path: None
+  pretrained_parameterization_path: ''
+  pretrained_forecast_path: ''
   autoregressive: False
